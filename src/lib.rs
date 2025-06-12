@@ -6,14 +6,16 @@ use ::core::{
 use ngx::{
     core::{Buffer, Status},
     ffi::{
-        NGX_CONF_NOARGS, NGX_CONF_TAKE1, NGX_HTTP_LOC_CONF, NGX_HTTP_LOC_CONF_OFFSET,
-        NGX_HTTP_MODULE, NGX_HTTP_SRV_CONF, ngx_array_push, ngx_atomic_t, ngx_chain_t,
-        ngx_command_t, ngx_conf_t, ngx_http_handler_pt, ngx_http_module_t,
-        ngx_http_phases_NGX_HTTP_PRECONTENT_PHASE, ngx_int_t, ngx_module_t, ngx_str_t, ngx_uint_t,
+        NGX_CONF_NOARGS, NGX_CONF_TAKE1, NGX_HTTP_LOC_CONF,
+        NGX_HTTP_LOC_CONF_OFFSET, NGX_HTTP_MODULE, NGX_HTTP_SRV_CONF,
+        ngx_array_push, ngx_atomic_t, ngx_chain_t, ngx_command_t, ngx_conf_t,
+        ngx_http_handler_pt, ngx_http_module_t,
+        ngx_http_phases_NGX_HTTP_PRECONTENT_PHASE, ngx_int_t, ngx_module_t,
+        ngx_str_t, ngx_uint_t,
     },
     http::{
-        self, HTTPStatus, HttpModule, HttpModuleLocationConf, HttpModuleMainConf, MergeConfigError,
-        Method, NgxHttpCoreModule,
+        self, HTTPStatus, HttpModule, HttpModuleLocationConf,
+        HttpModuleMainConf, MergeConfigError, Method, NgxHttpCoreModule,
     },
     http_request_handler, ngx_log_debug_http, ngx_string,
 };
@@ -40,10 +42,13 @@ impl http::HttpModule for Module {
         // SAFETY: this function is called with non-NULL cf always
         let cf = unsafe { &mut *cf };
 
-        let cmcf = NgxHttpCoreModule::main_conf_mut(cf).expect("http core main conf");
+        let cmcf =
+            NgxHttpCoreModule::main_conf_mut(cf).expect("http core main conf");
         let h = unsafe {
             ngx_array_push(
-                &mut cmcf.phases[ngx_http_phases_NGX_HTTP_PRECONTENT_PHASE as usize].handlers,
+                &mut cmcf.phases
+                    [ngx_http_phases_NGX_HTTP_PRECONTENT_PHASE as usize]
+                    .handlers,
             )
             .cast::<ngx_http_handler_pt>()
         };
@@ -84,8 +89,10 @@ unsafe impl HttpModuleLocationConf for Module {
 static mut NGX_HTTP_PROMETHEUS_EXPORTER_COMMANDS: [ngx_command_t; 2] = [
     ngx_command_t {
         name: ngx_string!("prometheus_exporter"),
-        type_: (NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_NOARGS | NGX_CONF_TAKE1)
-            as ngx_uint_t,
+        type_: (NGX_HTTP_SRV_CONF
+            | NGX_HTTP_LOC_CONF
+            | NGX_CONF_NOARGS
+            | NGX_CONF_TAKE1) as ngx_uint_t,
         // type_: (NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG) as ngx_uint_t,
         set: Some(ngx_http_curl_commands_set_enable),
         // set: Some(ngx_conf_set_flag_slot),
@@ -118,7 +125,9 @@ ngx::ngx_modules!(ngx_http_curl_module);
 #[cfg_attr(not(feature = "export-modules"), unsafe(no_mangle))]
 pub static mut ngx_http_curl_module: ngx_module_t = ngx_module_t {
     ctx: std::ptr::addr_of!(NGX_HTTP_CURL_MODULE_CTX) as _,
-    commands: unsafe { (&raw const NGX_HTTP_PROMETHEUS_EXPORTER_COMMANDS[0]).cast_mut() },
+    commands: unsafe {
+        (&raw const NGX_HTTP_PROMETHEUS_EXPORTER_COMMANDS[0]).cast_mut()
+    },
     type_: NGX_HTTP_MODULE as _,
     ..ngx_module_t::default()
 };
@@ -138,7 +147,11 @@ http_request_handler!(curl_access_handler, |request: &mut http::Request| {
         return Status::NGX_DECLINED;
     }
 
-    ngx_log_debug_http!(request, "prometheus_exporter module enabled: {}", co.enable);
+    ngx_log_debug_http!(
+        request,
+        "prometheus_exporter module enabled: {}",
+        co.enable
+    );
 
     // Only respond to GET requests
     if !matches!(request.method(), Method::GET | Method::HEAD) {
@@ -182,7 +195,8 @@ nginx_http_requests_total {stat_requests}
         stat_requests = unsafe { *ngx_stat_requests },
     );
 
-    let Some(mut buffer) = request.pool().create_buffer_from_str(&content) else {
+    let Some(mut buffer) = request.pool().create_buffer_from_str(&content)
+    else {
         return http::HTTPStatus::INTERNAL_SERVER_ERROR.into();
     };
 
@@ -193,7 +207,8 @@ nginx_http_requests_total {stat_requests}
     request.set_status(HTTPStatus::OK);
 
     let rc = request.send_header();
-    if rc == Status::NGX_ERROR || rc > Status::NGX_OK || request.header_only() {
+    if rc == Status::NGX_ERROR || rc > Status::NGX_OK || request.header_only()
+    {
         return rc;
     }
 
