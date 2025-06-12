@@ -1,0 +1,24 @@
+[package]
+name = "ngx-prometheus-exporter"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "ngx_prometheus_exporter"
+crate-type = [ "cdylib" ]
+
+
+[dependencies]
+# ngx = "0.4.1"
+ngx = { git = "https://github.com/nginx/ngx-rust" }
+
+[features]
+default = ["export-modules"]
+export-modules = []
+linux = []
+
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
