@@ -32,10 +32,26 @@
               ];
               disallowedReferences = [];
 
-              postInstall = previousAttrs.postInstall + ''
+              postInstall = let
+
+                  noSourceRefs = lib.concatMapStrings (
+                    m: "remove-references-to -t ${m.src} $(readlink -fn $sources/obj/Makefile)\n"
+                  ) previousAttrs.passthru.modules;
+
+              in previousAttrs.postInstall + ''
                   mkdir -p $source/
                   cp -r * $source/
-                  rm $source/objs/nginx
+
+                  # Clear objs
+                  rm -rf $source/objs
+                  mkdir -p $source/objs
+
+                  # Repopulate with required files
+                  grep -v '#define NGX_CONFIGURE' objs/ngx_auto_config.h > $source/objs/ngx_auto_config.h
+                  cp objs/ngx_auto_headers.h $source/objs/ngx_auto_headers.h
+
+                  sed -n '/^ALL_INCS *=/,/[^\\]$/p' objs/Makefile > $source/objs/Makefile
+                  cp objs/Makefile $source/objs/Makefile
               '';
             }
           );
@@ -66,6 +82,16 @@
                   mkdir -p $out/
                   cp -r * $out/
                 '';
+
+             postInstall =  (previousAttrs.postInstall or "") +
+                (let
+                  noSourceRefs = lib.concatMapStrings (
+                    m: "remove-references-to -t ${m.src} $(readlink -fn $sources/obj/Makefile)\n"
+                  ) previousAttrs.passthru.modules;
+                in
+                noSourceRefs);
+
+                
             }
           );
         # pkgs.stdenv.mkDerivation {
@@ -104,10 +130,8 @@
           {
             pname = cargoTOML.package.name;
             inherit (cargoTOML.package) version;
-            inputsFrasdfom = [nginxSource];
 
             src = fs.toSource {
-
               root = ./.;
               fileset = fs.intersection (fs.gitTracked ./.) (
                 fs.unions [
@@ -119,6 +143,11 @@
             };
 
             buildInputs = nginxSource.buildInputs;
+            nativeBuildInputs = [
+              pkgs.rustPlatform.bindgenHook
+            ];
+
+
 
             cargoLock = {
               lockFile = ./Cargo.lock;
@@ -135,7 +164,7 @@
             '';
 
             env = {
-              "NGINX_SOURCE_DIR" = nginxSource;
+              "NGINX_SOURCE_DIR" = nginxSource2.source;
             };
 
           }
