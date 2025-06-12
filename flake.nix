@@ -80,13 +80,13 @@
             pkgs.rustfmt
           ] "cd ${self} && cargo fmt -- --check";
 
-          # actionlint = mkCheck "check-actionlint" [
-          #   pkgs.actionlint
-          # ] "actionlint ${self}/.github/workflows/*";
+          actionlint = mkCheck "check-actionlint" [
+            pkgs.actionlint
+          ] "actionlint ${self}/.github/workflows/*";
 
-          # zizmor = mkCheck "check-zizmor" [
-          #   pkgs.zizmor
-          # ] "zizmor --pedantic ${self}";
+          zizmor = mkCheck "check-zizmor" [
+            pkgs.zizmor
+          ] "zizmor --pedantic ${self}";
 
           typos = mkCheck "check-typos" [ pkgs.typos ] "typos --hidden ${self}";
 
