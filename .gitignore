@@ -1,1 +1,11 @@
 /target
+test/
+# direnv
+.direnv/
+.env*
+!.env.template
+
+# nix
+result
+result-*
+repl-result-*
