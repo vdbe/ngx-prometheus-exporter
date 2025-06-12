@@ -1,5 +1,6 @@
-/target
-test/
+# rust
+target/
+
 # direnv
 .direnv/
 .env*
@@ -9,3 +10,6 @@ test/
 result
 result-*
 repl-result-*
+
+# ci
+dist/
