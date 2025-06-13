@@ -10,7 +10,7 @@ use ngx::{
         NGX_HTTP_LOC_CONF_OFFSET, NGX_HTTP_MODULE, NGX_HTTP_SRV_CONF,
         ngx_array_push, ngx_atomic_t, ngx_chain_t, ngx_command_t, ngx_conf_t,
         ngx_http_handler_pt, ngx_http_module_t,
-        ngx_http_phases_NGX_HTTP_PRECONTENT_PHASE, ngx_int_t, ngx_module_t,
+        ngx_http_phases_NGX_HTTP_CONTENT_PHASE, ngx_int_t, ngx_module_t,
         ngx_str_t, ngx_uint_t,
     },
     http::{
@@ -23,14 +23,14 @@ use ngx::{
 struct Module;
 
 unsafe extern "C" {
-    // This must match the C type exactly
-    static mut ngx_stat_accepted: *mut ngx_atomic_t;
-    static mut ngx_stat_handled: *mut ngx_atomic_t;
-    static mut ngx_stat_active: *mut ngx_atomic_t;
-    static mut ngx_stat_requests: *mut ngx_atomic_t;
-    static mut ngx_stat_reading: *mut ngx_atomic_t;
-    static mut ngx_stat_writing: *mut ngx_atomic_t;
-    static mut ngx_stat_waiting: *mut ngx_atomic_t;
+    // const instead of must just because we don't need to modify them
+    static ngx_stat_accepted: *const ngx_atomic_t;
+    static ngx_stat_handled: *const ngx_atomic_t;
+    static ngx_stat_active: *const ngx_atomic_t;
+    static ngx_stat_requests: *const ngx_atomic_t;
+    static ngx_stat_reading: *const ngx_atomic_t;
+    static ngx_stat_writing: *const ngx_atomic_t;
+    static ngx_stat_waiting: *const ngx_atomic_t;
 }
 
 impl http::HttpModule for Module {
@@ -44,22 +44,26 @@ impl http::HttpModule for Module {
 
         let cmcf =
             NgxHttpCoreModule::main_conf_mut(cf).expect("http core main conf");
-        let h = unsafe {
+        let handler = unsafe {
             ngx_array_push(
                 &mut cmcf.phases
-                    [ngx_http_phases_NGX_HTTP_PRECONTENT_PHASE as usize]
+                    // We want to _replace_ the content with metrics
+                    [ngx_http_phases_NGX_HTTP_CONTENT_PHASE as usize]
                     .handlers,
             )
             .cast::<ngx_http_handler_pt>()
         };
-        if h.is_null() {
+        if handler.is_null() {
             return Status::NGX_ERROR.into();
         }
-        // set an Pre Content phase handler
+        // Set phase handler
+        // SAFETY: is not null as check above
         unsafe {
-            *h = Some(curl_access_handler);
+            *handler = Some(curl_access_handler);
         }
 
+        // Check if stats are initialized
+        // SAFETY: Just checking if they are null
         if unsafe {
             ngx_stat_accepted.is_null()
                 || ngx_stat_handled.is_null()
@@ -76,7 +80,6 @@ impl http::HttpModule for Module {
     }
 }
 
-#[repr(C)]
 #[derive(Debug, Default)]
 struct ModuleConfig {
     enable: bool,
@@ -153,7 +156,7 @@ http_request_handler!(curl_access_handler, |request: &mut http::Request| {
         co.enable
     );
 
-    // Only respond to GET requests
+    // Only respond to GET/HEAD requests
     if !matches!(request.method(), Method::GET | Method::HEAD) {
         return http::HTTPStatus::NOT_ALLOWED.into();
     }
@@ -186,6 +189,7 @@ nginx_connections_writing {stat_writing}
 # TYPE nginx_http_requests_total counter
 nginx_http_requests_total {stat_requests}
 ",
+        // SAFETY: All checked in `postconfiguration` to _not_ be null ptrs
         stat_accepted = unsafe { *ngx_stat_accepted },
         stat_active = unsafe { *ngx_stat_active },
         stat_handled = unsafe { *ngx_stat_handled },
@@ -200,11 +204,11 @@ nginx_http_requests_total {stat_requests}
         return http::HTTPStatus::INTERNAL_SERVER_ERROR.into();
     };
 
-    buffer.set_last_buf(request.is_main());
-    buffer.set_last_in_chain(true);
-
     request.set_content_length_n(buffer.len());
     request.set_status(HTTPStatus::OK);
+
+    buffer.set_last_buf(request.is_main());
+    buffer.set_last_in_chain(true);
 
     let rc = request.send_header();
     if rc == Status::NGX_ERROR || rc > Status::NGX_OK || request.header_only()
@@ -240,6 +244,8 @@ extern "C" fn ngx_http_curl_commands_set_enable(
             conf.enable = true;
         } else if val.len() == 3 && val.eq_ignore_ascii_case("off") {
             conf.enable = false;
+        } else {
+            // TODO: return ERROR
         }
     }
 
