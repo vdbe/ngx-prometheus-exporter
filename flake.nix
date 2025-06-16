@@ -2,7 +2,8 @@
   description = "A very basic flake";
 
   inputs = {
-    nixpkgs.url = "https://channels.nixos.org/nixpkgs-unstable/nixexprs.tar.xz";
+    # nixpkgs.url = "https://channels.nixos.org/nixpkgs-unstable/nixexprs.tar.xz";
+    nixpkgs.url = "github:vdbe/nixpkgs/nixos-unstable";
   };
 
   outputs =
@@ -17,9 +18,9 @@
       # These are the systems we do officially support and test, though
       supportedSystems = [
         "x86_64-linux"
-        # "aarch64-linux"
+        "aarch64-linux"
         "x86_64-darwin"
-        # "aarch64-darwin"
+        "aarch64-darwin"
       ];
 
       forAllSystems = lib.genAttrs allSystems;
@@ -32,6 +33,8 @@
           pkgs = nixpkgsFor.${system};
           packages = self.packages.${system};
 
+          kernelName = pkgs.stdenv.hostPlatform.parsed.kernel.name;
+
           mkCheck =
             name: deps: script:
             pkgs.runCommand name { nativeBuildInputs = deps; } ''
@@ -39,63 +42,73 @@
               touch $out
             '';
         in
-        lib.optionalAttrs (lib.elem system supportedSystems) {
-          package_sshd-command = packages.default;
+        lib.optionalAttrs (lib.elem system supportedSystems) (
+          {
+            package_sshd-command = packages.default;
 
-          clippy = (packages.default.override { lto = false; }).overrideAttrs {
-            pname = "check-clippy";
+            clippy = (packages.default.override { lto = false; }).overrideAttrs {
+              pname = "check-clippy";
 
-            nativeBuildInputs = [
+              nativeBuildInputs = [
+                pkgs.cargo
+                pkgs.clippy
+                pkgs.clippy-sarif
+                pkgs.rustPlatform.cargoSetupHook
+                pkgs.rustPlatform.bindgenHook
+                pkgs.rustc
+                pkgs.sarif-fmt
+              ];
+
+              buildPhase = ''
+                runHook preBuild
+                cargo clippy \
+                  --all-features \
+                  --all-targets \
+                  --tests \
+                  --message-format=json \
+                | clippy-sarif | tee $out | sarif-fmt
+                runHook postBuild
+              '';
+
+              dontInstall = true;
+              doCheck = false;
+              doInstallCheck = false;
+              dontFixup = true;
+
+              passthru = { };
+              meta = { };
+            };
+
+            rustfmt = mkCheck "check-cargo-fmt" [
               pkgs.cargo
-              pkgs.clippy
-              pkgs.clippy-sarif
-              pkgs.rustPlatform.cargoSetupHook
-              pkgs.rustPlatform.bindgenHook
-              pkgs.rustc
-              pkgs.sarif-fmt
-            ];
+              pkgs.rustfmt
+            ] "cd ${self} && cargo fmt -- --check";
 
-            buildPhase = ''
-              runHook preBuild
-              cargo clippy \
-                --all-features \
-                --all-targets \
-                --tests \
-                --message-format=json \
-              | clippy-sarif | tee $out | sarif-fmt
-              runHook postBuild
-            '';
+            actionlint = mkCheck "check-actionlint" [
+              pkgs.actionlint
+            ] "actionlint ${self}/.github/workflows/*";
 
-            dontInstall = true;
-            doCheck = false;
-            doInstallCheck = false;
-            dontFixup = true;
+            zizmor = mkCheck "check-zizmor" [
+              pkgs.zizmor
+            ] "zizmor --pedantic ${self}";
 
-            passthru = { };
-            meta = { };
-          };
+            typos = mkCheck "check-typos" [ pkgs.typos ] "typos --hidden ${self}";
 
-          rustfmt = mkCheck "check-cargo-fmt" [
-            pkgs.cargo
-            pkgs.rustfmt
-          ] "cd ${self} && cargo fmt -- --check";
+            deadnix = mkCheck "check-deadnix" [ pkgs.deadnix ] "deadnix --fail ${self}";
 
-          actionlint = mkCheck "check-actionlint" [
-            pkgs.actionlint
-          ] "actionlint ${self}/.github/workflows/*";
+            nixfmt = mkCheck "check-nixfmt" [ pkgs.nixfmt-rfc-style ] "nixfmt --check ${self}";
 
-          zizmor = mkCheck "check-zizmor" [
-            pkgs.zizmor
-          ] "zizmor --pedantic ${self}";
-
-          typos = mkCheck "check-typos" [ pkgs.typos ] "typos --hidden ${self}";
-
-          deadnix = mkCheck "check-deadnix" [ pkgs.deadnix ] "deadnix --fail ${self}";
-
-          nixfmt = mkCheck "check-nixfmt" [ pkgs.nixfmt-rfc-style ] "nixfmt --check ${self}";
-
-          statix = mkCheck "check-statix" [ pkgs.statix ] "statix check ${self}";
-        }
+            statix = mkCheck "check-statix" [ pkgs.statix ] "statix check ${self}";
+          }
+          // (
+            {
+              linux = {
+                nixos = pkgs.callPackage ./nix/tests/nixos.nix { };
+              };
+            }
+            .${kernelName} or { }
+          )
+        )
       );
 
       devShells = forAllSystems (

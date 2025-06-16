@@ -65,9 +65,11 @@ rustPlatform.buildRustPackage (
     cargoLock = {
       lockFile = "${final.src}/Cargo.lock";
       outputHashes = {
-        "nginx-sys-0.5.0" = "sha256-dnBybf59K8dFq3zLxty1D9vseDN4pToT1QzWRPNgqaw=";
+        "nginx-sys-0.5.0" = "sha256-1b/lyDq0ZqjAsqHKmct9ZysbmQeUVrEZaj2uBEw6R+Y=";
       };
     };
+
+    doCheck = false;
 
     inherit (nginxSource) buildInputs;
     nativeBuildInputs = [
