@@ -18,6 +18,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "allocator-api2"
+version = "0.2.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
+
+[[package]]
+name = "autocfg"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -250,6 +262,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd945864f07fe9f5371a27ad7b52a172b4b499999f1d97574c9fa68373937e12"
 
 [[package]]
+name = "lock_api"
+version = "0.4.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96936507f153605bddfcda068dd804796c84324ed2510809e5b2a624c81da765"
+dependencies = [
+ "autocfg",
+ "scopeguard",
+]
+
+[[package]]
 name = "log"
 version = "0.4.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -279,7 +301,7 @@ dependencies = [
 [[package]]
 name = "nginx-sys"
 version = "0.5.0"
-source = "git+https://github.com/nginx/ngx-rust#98cf6fbcd4d5c5840eae09f41c16611834f52b5d"
+source = "git+https://github.com/nginx/ngx-rust#e017d3db67dac5f28289ce0111c00a2491e3a25e"
 dependencies = [
  "bindgen",
  "cc",
@@ -296,8 +318,10 @@ dependencies = [
 [[package]]
 name = "ngx"
 version = "0.5.0"
-source = "git+https://github.com/nginx/ngx-rust#98cf6fbcd4d5c5840eae09f41c16611834f52b5d"
+source = "git+https://github.com/nginx/ngx-rust#e017d3db67dac5f28289ce0111c00a2491e3a25e"
 dependencies = [
+ "allocator-api2",
+ "lock_api",
  "nginx-sys",
 ]
 
@@ -482,6 +506,12 @@ dependencies = [
  "rustls-pki-types",
  "untrusted",
 ]
+
+[[package]]
+name = "scopeguard"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "shared_child"
